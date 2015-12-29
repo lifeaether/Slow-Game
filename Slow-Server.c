@@ -54,10 +54,10 @@ CLEAN:
     if ( option_verbose ) fprintf( stderr, "[%s]プレイヤーを終了します...\n", name );
     
     if ( close( pipe_in ) == -1 ) {
-        fprintf( stderr, "warn[%s]: パイプのクローズに失敗しました(%d).\n", name, __LINE__ );
+        fprintf( stderr, "warn[%s]: close に失敗しました(%d).\n", name, __LINE__ );
     }
     if ( close( pipe_out ) == -1 ) {
-        fprintf( stderr, "warn[%s]: パイプのクローズに失敗しました(%d).\n", name, __LINE__ );
+        fprintf( stderr, "warn[%s]: close に失敗しました(%d).\n", name, __LINE__ );
     }
 
     return exit_code;
@@ -142,10 +142,10 @@ int main( const int argc, const char *argv[] )
         
         // close other pipes.
         if ( close( fd_p2[0] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
         if ( close( fd_p2[1] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
         
         return run_player( option_player1, fd_p1[0], fd_p1[1] );
@@ -163,10 +163,10 @@ int main( const int argc, const char *argv[] )
 
         // close other pipes.
         if ( close( fd_p1[0] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
         if ( close( fd_p1[1] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
 
         return run_player( option_player2, fd_p2[0], fd_p2[1] );
@@ -183,16 +183,16 @@ CLEAN:
     if ( option_verbose ) fprintf( stderr, "ゲームを終了します...\n" );
     
     if ( close( fd_p1[0] ) == -1 ) {
-        fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
     if ( close( fd_p1[1] ) == -1 ) {
-        fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
     if ( close( fd_p2[0] ) == -1 ) {
-        fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
     if ( close( fd_p2[1] ) == -1 ) {
-        fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
 
     return exit_code;
