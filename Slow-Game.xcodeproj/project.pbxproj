@@ -6,6 +6,10 @@
 	objectVersion = 46;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CE109AEB1C326F6200E553EA /* Slow-Server.c in Sources */ = {isa = PBXBuildFile; fileRef = CE109AEA1C326F6200E553EA /* Slow-Server.c */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		CE109ADE1C326F0900E553EA /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -19,7 +23,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		CE109AE01C326F0900E553EA /* Slow-Game */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Slow-Game"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE109AE01C326F0900E553EA /* Slow-Server */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Slow-Server"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE109AEA1C326F6200E553EA /* Slow-Server.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "Slow-Server.c"; sourceTree = "<group>"; };
+		CE109AEC1C32708800E553EA /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,6 +42,8 @@
 		CE109AD71C326F0900E553EA = {
 			isa = PBXGroup;
 			children = (
+				CE109AEC1C32708800E553EA /* README.md */,
+				CE109AEA1C326F6200E553EA /* Slow-Server.c */,
 				CE109AE11C326F0900E553EA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,7 +51,7 @@
 		CE109AE11C326F0900E553EA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CE109AE01C326F0900E553EA /* Slow-Game */,
+				CE109AE01C326F0900E553EA /* Slow-Server */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -51,9 +59,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		CE109ADF1C326F0900E553EA /* Slow-Game */ = {
+		CE109ADF1C326F0900E553EA /* Slow-Server */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CE109AE71C326F0900E553EA /* Build configuration list for PBXNativeTarget "Slow-Game" */;
+			buildConfigurationList = CE109AE71C326F0900E553EA /* Build configuration list for PBXNativeTarget "Slow-Server" */;
 			buildPhases = (
 				CE109ADC1C326F0900E553EA /* Sources */,
 				CE109ADD1C326F0900E553EA /* Frameworks */,
@@ -63,9 +71,9 @@
 			);
 			dependencies = (
 			);
-			name = "Slow-Game";
+			name = "Slow-Server";
 			productName = "Slow-Game";
-			productReference = CE109AE01C326F0900E553EA /* Slow-Game */;
+			productReference = CE109AE01C326F0900E553EA /* Slow-Server */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -94,7 +102,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				CE109ADF1C326F0900E553EA /* Slow-Game */,
+				CE109ADF1C326F0900E553EA /* Slow-Server */,
 			);
 		};
 /* End PBXProject section */
@@ -104,6 +112,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE109AEB1C326F6200E553EA /* Slow-Server.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -146,7 +155,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -183,7 +192,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 			};
@@ -215,13 +224,14 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CE109AE71C326F0900E553EA /* Build configuration list for PBXNativeTarget "Slow-Game" */ = {
+		CE109AE71C326F0900E553EA /* Build configuration list for PBXNativeTarget "Slow-Server" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CE109AE81C326F0900E553EA /* Debug */,
 				CE109AE91C326F0900E553EA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
