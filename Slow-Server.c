@@ -9,6 +9,11 @@
 
 #include <unistd.h>
 
+// options
+static bool option_verbose = false;
+static const char *option_player1 = NULL;
+static const char *option_player2 = NULL;
+
 void version()
 {
     fprintf( stdout, "Slow-Server version 0.01\n" );
@@ -28,13 +33,39 @@ void usage()
     fprintf( stdout, "\n" );
 }
 
+int run_player( const char *name, const int pipe_in, const int pipe_out )
+{
+    int exit_code = EXIT_FAILURE;
+
+    // replace stdin, stdout to pipes.
+    if ( dup2( pipe_in, STDIN_FILENO ) == -1 ) {
+        fprintf( stderr, "error[%s]: dup2 に失敗しました(%d).\n", name, __LINE__ );
+        goto CLEAN;
+    }
+    if ( dup2( pipe_out, STDOUT_FILENO ) == -1 ) {
+        fprintf( stderr, "error[%s]: dup2 に失敗しました(%d).\n", name, __LINE__ );
+        goto CLEAN;
+    }
+    
+
+    exit_code = EXIT_SUCCESS;
+CLEAN:
+    // cleanup player.
+    if ( option_verbose ) fprintf( stderr, "[%s]プレイヤーを終了します...\n", name );
+    
+    if ( close( pipe_in ) == -1 ) {
+        fprintf( stderr, "warn[%s]: パイプのクローズに失敗しました(%d).\n", name, __LINE__ );
+    }
+    if ( close( pipe_out ) == -1 ) {
+        fprintf( stderr, "warn[%s]: パイプのクローズに失敗しました(%d).\n", name, __LINE__ );
+    }
+
+    return exit_code;
+}
+
 int main( const int argc, const char *argv[] )
 {
     // get options.
-    bool option_verbose = false;
-    const char *option_player1 = NULL;
-    const char *option_player2 = NULL;
-    
     for ( int i = 1; i < argc; i++ ) {
         if ( i+1 < argc && strcmp( argv[i], "--player1" ) == 0 ) {
             option_player1 = argv[++i];
@@ -107,24 +138,17 @@ int main( const int argc, const char *argv[] )
     
     if ( pid_p1 == 0 ) {
         // player1 child process.
-        if ( option_verbose ) fprintf( stderr, "Player1 を実行します...\n" );
+        if ( option_verbose ) fprintf( stderr, "[%s]を実行します...\n", option_player1 );
+        
+        // close other pipes.
         if ( close( fd_p2[0] ) == -1 ) {
             fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
         }
         if ( close( fd_p2[1] ) == -1 ) {
             fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
         }
-
-        // cleanup player1.
-        if ( option_verbose ) fprintf( stderr, "Player1 を終了します...\n" );
-
-        if ( close( fd_p1[0] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
-        }
-        if ( close( fd_p1[1] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
-        }
-        return EXIT_SUCCESS;
+        
+        return run_player( option_player1, fd_p1[0], fd_p1[1] );
     }
     
     pid_p2 = fork();
@@ -135,33 +159,29 @@ int main( const int argc, const char *argv[] )
     
     if ( pid_p2 == 0 ) {
         // player2 child process.
-        if ( option_verbose ) fprintf( stderr, "Player2 を実行します...\n" );
+        if ( option_verbose ) fprintf( stderr, "[%s]を実行します...\n", option_player2 );
+
+        // close other pipes.
         if ( close( fd_p1[0] ) == -1 ) {
             fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
         }
         if ( close( fd_p1[1] ) == -1 ) {
             fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
         }
-        
-        // cleanup player2.
-        if ( option_verbose ) fprintf( stderr, "Player2 を終了します...\n" );
 
-        if ( close( fd_p2[0] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
-        }
-        if ( close( fd_p2[1] ) == -1 ) {
-            fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
-        }
-        return EXIT_SUCCESS;
+        return run_player( option_player2, fd_p2[0], fd_p2[1] );
     }
     
     // game sever parent process.
     if ( option_verbose ) fprintf( stderr, "ゲームを初期化します...\n" );
     
-
+    int exit_code = EXIT_FAILURE;
+    
+    exit_code = EXIT_SUCCESS;
+CLEAN:
     // cleanup.
     if ( option_verbose ) fprintf( stderr, "ゲームを終了します...\n" );
-
+    
     if ( close( fd_p1[0] ) == -1 ) {
         fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
     }
@@ -174,6 +194,6 @@ int main( const int argc, const char *argv[] )
     if ( close( fd_p2[1] ) == -1 ) {
         fprintf( stderr, "warn: パイプのクローズに失敗しました(%d).\n", __LINE__ );
     }
-    
-    return EXIT_SUCCESS;
+
+    return exit_code;
 }
