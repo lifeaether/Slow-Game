@@ -47,7 +47,8 @@ int run_player( const char *name, const int pipe_in, const int pipe_out )
         goto CLEAN;
     }
     
-
+    // execute player
+    
     exit_code = EXIT_SUCCESS;
 CLEAN:
     // cleanup player.
@@ -108,21 +109,30 @@ int main( const int argc, const char *argv[] )
     // setup pipe.
     if ( option_verbose ) fprintf( stderr, "パイプを準備します...\n" );
     
-    int fd_p1[2];
-    int fd_p2[2];
-
-    if ( pipe( fd_p1 ) == -1 ) {
+    int fd_p1_in[2];
+    int fd_p1_out[2];
+    int fd_p2_in[2];
+    int fd_p2_out[2];
+    
+    if ( pipe( fd_p1_in ) == -1 ) {
         fprintf( stderr, "error: pipe に失敗しました(%d).\n", __LINE__ );
         return EXIT_FAILURE;
     }
 
-    if ( pipe( fd_p2 ) == -1 ) {
-        close( fd_p1[0] );
-        close( fd_p1[1] );
+    if ( pipe( fd_p1_out ) == -1 ) {
         fprintf( stderr, "error: pipe に失敗しました(%d).\n", __LINE__ );
         return EXIT_FAILURE;
     }
     
+    if ( pipe( fd_p2_in ) == -1 ) {
+        fprintf( stderr, "error: pipe に失敗しました(%d).\n", __LINE__ );
+        return EXIT_FAILURE;
+    }
+    
+    if ( pipe( fd_p2_out ) == -1 ) {
+        fprintf( stderr, "error: pipe に失敗しました(%d).\n", __LINE__ );
+        return EXIT_FAILURE;
+    }
     
     // lauch process.
     if ( option_verbose ) fprintf( stderr, "プロセスを複製します...\n" );
@@ -141,14 +151,20 @@ int main( const int argc, const char *argv[] )
         if ( option_verbose ) fprintf( stderr, "[%s]を実行します...\n", option_player1 );
         
         // close other pipes.
-        if ( close( fd_p2[0] ) == -1 ) {
+        if ( close( fd_p2_in[0] ) == -1 ) {
             fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
-        if ( close( fd_p2[1] ) == -1 ) {
+        if ( close( fd_p2_in[1] ) == -1 ) {
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+        }
+        if ( close( fd_p2_out[0] ) == -1 ) {
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+        }
+        if ( close( fd_p2_out[1] ) == -1 ) {
             fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
         
-        return run_player( option_player1, fd_p1[0], fd_p1[1] );
+        return run_player( option_player1, fd_p1_in[0], fd_p1_out[1] );
     }
     
     pid_p2 = fork();
@@ -158,23 +174,31 @@ int main( const int argc, const char *argv[] )
     }
     
     if ( pid_p2 == 0 ) {
-        // player2 child process.
-        if ( option_verbose ) fprintf( stderr, "[%s]を実行します...\n", option_player2 );
-
+        // player1 child process.
+        if ( option_verbose ) fprintf( stderr, "[%s]を実行します...\n", option_player1 );
+        
         // close other pipes.
-        if ( close( fd_p1[0] ) == -1 ) {
+        if ( close( fd_p1_in[0] ) == -1 ) {
             fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
-        if ( close( fd_p1[1] ) == -1 ) {
+        if ( close( fd_p1_in[1] ) == -1 ) {
             fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
-
-        return run_player( option_player2, fd_p2[0], fd_p2[1] );
+        if ( close( fd_p1_out[0] ) == -1 ) {
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+        }
+        if ( close( fd_p1_out[1] ) == -1 ) {
+            fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+        }
+        
+        return run_player( option_player1, fd_p2_in[0], fd_p2_out[1] );
     }
     
     // game sever parent process.
     if ( option_verbose ) fprintf( stderr, "ゲームを初期化します...\n" );
     
+
+
     int exit_code = EXIT_FAILURE;
     
     exit_code = EXIT_SUCCESS;
@@ -182,16 +206,28 @@ CLEAN:
     // cleanup.
     if ( option_verbose ) fprintf( stderr, "ゲームを終了します...\n" );
     
-    if ( close( fd_p1[0] ) == -1 ) {
+    if ( close( fd_p1_in[0] ) == -1 ) {
         fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
-    if ( close( fd_p1[1] ) == -1 ) {
+    if ( close( fd_p1_in[1] ) == -1 ) {
         fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
-    if ( close( fd_p2[0] ) == -1 ) {
+    if ( close( fd_p1_out[0] ) == -1 ) {
         fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
-    if ( close( fd_p2[1] ) == -1 ) {
+    if ( close( fd_p1_out[1] ) == -1 ) {
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+    }
+    if ( close( fd_p2_in[0] ) == -1 ) {
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+    }
+    if ( close( fd_p2_in[1] ) == -1 ) {
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+    }
+    if ( close( fd_p2_out[0] ) == -1 ) {
+        fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
+    }
+    if ( close( fd_p2_out[1] ) == -1 ) {
         fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
     }
 
