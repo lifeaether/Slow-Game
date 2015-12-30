@@ -13,6 +13,7 @@
 static bool option_verbose = false;
 static const char *option_player1 = NULL;
 static const char *option_player2 = NULL;
+static int32_t option_number_of_games = 1;
 
 void version()
 {
@@ -23,45 +24,109 @@ void usage()
 {
     fprintf( stdout, "\n" );
     fprintf( stdout, "使い方\n" );
-    fprintf( stdout, "./Slow-Server --player1 EXE1 --player2 EXE2\n" );
+    fprintf( stdout, "./Slow-Server --player1 EXE1 --player2 EXE2 --number 100\n" );
     fprintf( stdout, "\n" );
     fprintf( stdout, "オプション\n" );
     fprintf( stdout, " --player1 プレイヤー1の実行ファイルを指定.\n" );
     fprintf( stdout, " --player2 プレイヤー2の実行ファイルを指定.\n" );
+    fprintf( stdout, " --number 対戦数.\n" );
     fprintf( stdout, " --version バージョン情報表示.\n" );
     fprintf( stdout, " --verbose 動作を出力.\n" );
     fprintf( stdout, "\n" );
 }
 
-int run_player( const char *name, const int pipe_in, const int pipe_out )
+int run_player( const char *filename, const int pipe_in, const int pipe_out )
 {
     int exit_code = EXIT_FAILURE;
 
     // replace stdin, stdout to pipes.
     if ( dup2( pipe_in, STDIN_FILENO ) == -1 ) {
-        fprintf( stderr, "error[%s]: dup2 に失敗しました(%d).\n", name, __LINE__ );
+        fprintf( stderr, "error[%s]: dup2 に失敗しました(%d).\n", filename, __LINE__ );
         goto CLEAN;
     }
     if ( dup2( pipe_out, STDOUT_FILENO ) == -1 ) {
-        fprintf( stderr, "error[%s]: dup2 に失敗しました(%d).\n", name, __LINE__ );
+        fprintf( stderr, "error[%s]: dup2 に失敗しました(%d).\n", filename, __LINE__ );
         goto CLEAN;
     }
     
     // execute player
+    if ( execl( filename, filename ) == -1 ) {
+        fprintf( stderr, "error[%s]: execl に失敗しました(%d).\n", filename, __LINE__ );
+        goto CLEAN;
+    }
     
     exit_code = EXIT_SUCCESS;
 CLEAN:
     // cleanup player.
-    if ( option_verbose ) fprintf( stderr, "[%s]プレイヤーを終了します...\n", name );
+    if ( option_verbose ) fprintf( stderr, "[%s]プレイヤーを終了します...\n", filename );
     
     if ( close( pipe_in ) == -1 ) {
-        fprintf( stderr, "warn[%s]: close に失敗しました(%d).\n", name, __LINE__ );
+        fprintf( stderr, "warn[%s]: close に失敗しました(%d).\n", filename, __LINE__ );
     }
     if ( close( pipe_out ) == -1 ) {
-        fprintf( stderr, "warn[%s]: close に失敗しました(%d).\n", name, __LINE__ );
+        fprintf( stderr, "warn[%s]: close に失敗しました(%d).\n", filename, __LINE__ );
     }
 
     return exit_code;
+}
+
+bool write_line( const int fd, const char *line )
+{
+    const size_t length = strlen( line );
+    return write( fd, line, length ) != length && write( fd, "\n", 1 ) != 1;
+}
+
+bool read_line( const int fd, char *line, const size_t max_of_line )
+{
+    size_t bytes = 0;
+    for ( *line = '\0'; bytes < max_of_line && *line != '\n'; ++line, ++bytes ) {
+        if ( read( fd, line, 1 ) != 1 ) return false;
+    }
+    *line = '\0';
+    return true;
+}
+
+void swap( int16_t *v1, int16_t *v2 )
+{
+    int16_t t = *v1;
+    *v1 = *v2;
+    *v2 = t;
+}
+
+void shuffle( int16_t *deck, const size_t size )
+{
+    for ( size_t i = 0; i < size; i++ ) {
+        swap( deck+i, deck + i + rand()%(size-i) );
+    }
+}
+
+int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_out )
+{
+    if ( option_verbose ) fprintf( stderr, "ゲームを初期化します...\n" );
+    
+    for ( int32_t index_of_game = 0; index_of_game < option_number_of_games; index_of_game++ ) {
+        if ( option_verbose ) fprintf( stderr, "第 %000d ゲームを開始\n", index_of_game+1 );
+        
+        // deck.
+        int16_t deck_p1[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13};
+        int16_t deck_p2[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13};
+        const size_t number_of_deck = sizeof( deck_p1 ) / sizeof( deck_p1[0] );
+        shuffle( deck_p1, number_of_deck );
+        shuffle( deck_p2, number_of_deck );
+        
+        // hands.
+        const size_t max_number_of_hands = 5;
+        int16_t hands_p1[max_number_of_hands] = {};
+        int16_t hands_p2[max_number_of_hands] = {};
+        
+        // place.
+        int16_t place_left[number_of_deck*2] = {};
+        int16_t place_right[number_of_deck*2] = {};
+        
+        
+    }
+    
+    return EXIT_SUCCESS;
 }
 
 int main( const int argc, const char *argv[] )
@@ -72,6 +137,8 @@ int main( const int argc, const char *argv[] )
             option_player1 = argv[++i];
         } else if ( i+1 < argc && strcmp( argv[i], "--player2" ) == 0 ) {
             option_player2 = argv[++i];
+        } else if ( i+1 < argc && strcmp( argv[i], "--number" ) == 0 ) {
+            option_number_of_games = atoi( argv[++i] );
         } else if ( strcmp( argv[i], "--version" ) == 0 ) {
             version();
             return EXIT_SUCCESS;
@@ -102,6 +169,7 @@ int main( const int argc, const char *argv[] )
         fprintf( stdout, "オプション\n" );
         fprintf( stdout, " --player1 %s\n", option_player1 );
         fprintf( stdout, " --player2 %s\n", option_player2 );
+        fprintf( stdout, " --number %d\n", option_number_of_games );
         fprintf( stdout, " --verbose %s\n", option_verbose ? "true" : "false" );
     }
     
@@ -194,15 +262,9 @@ int main( const int argc, const char *argv[] )
         return run_player( option_player1, fd_p2_in[0], fd_p2_out[1] );
     }
     
-    // game sever parent process.
-    if ( option_verbose ) fprintf( stderr, "ゲームを初期化します...\n" );
+    // start game.
+    const int exit_code = run_game( fd_p1_in[1], fd_p1_out[0], fd_p2_in[1], fd_p2_out[0] );
     
-
-
-    int exit_code = EXIT_FAILURE;
-    
-    exit_code = EXIT_SUCCESS;
-CLEAN:
     // cleanup.
     if ( option_verbose ) fprintf( stderr, "ゲームを終了します...\n" );
     
