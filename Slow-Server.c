@@ -9,6 +9,9 @@
 
 #include <unistd.h>
 
+// constants.
+const int32_t k_max_line = 256;
+
 // options
 static bool option_verbose = false;
 static const char *option_player1 = NULL;
@@ -86,44 +89,100 @@ bool read_line( const int fd, char *line, const size_t max_of_line )
     return true;
 }
 
-void swap( int16_t *v1, int16_t *v2 )
+void deck_swap( int16_t *v1, int16_t *v2 )
 {
     int16_t t = *v1;
     *v1 = *v2;
     *v2 = t;
 }
 
-void shuffle( int16_t *deck, const size_t size )
+void deck_shuffle( int16_t *deck, const size_t size )
 {
     for ( size_t i = 0; i < size; i++ ) {
-        swap( deck+i, deck + i + rand()%(size-i) );
+        deck_swap( deck+i, deck + i + rand()%(size-i) );
     }
+}
+
+bool write_reset( const int fd )
+{
+    return write_line( fd, "RESET" );
+}
+
+bool write_sequence( const int fd, const int16_t *sequence )
+{
+    char line[k_max_line];
+    size_t line_bytes = 0;
+    for ( size_t i = 0; *sequence != 0; i++, sequence++ ) {
+        line_bytes += sprintf( line + line_bytes, "%d ", *sequence );
+    }
+    if ( line_bytes > 0 ) {
+        line[line_bytes-1] = '\0'; // delete tail space character.
+    }
+    
+    return write_line( fd, line );
+}
+
+bool write_play( const int fd, const int32_t index_of_turn, const int16_t *hands_first, const int16_t *hands_second, const int16_t *place_left, const int16_t *place_right )
+{
+    {
+        // write turn.
+        char line[k_max_line];
+        sprintf( line, "%d", index_of_turn );
+        if ( ! write_line( fd, line ) ) return false;
+    }
+    
+    if ( ! write_sequence( fd, hands_first ) ) false;
+    if ( ! write_sequence( fd, hands_second ) ) false;
+    if ( ! write_sequence( fd, place_left ) ) false;
+    if ( ! write_sequence( fd, place_right ) ) false;
+    return true;
+}
+
+bool game_is_end( const int16_t *place_left, const int16_t *place_right, const int32_t number_of_cards )
+{
+    int32_t count = 0;
+    while ( *(place_left++) != 0 ) count++;
+    while ( *(place_right++) != 0 ) count++;
+    return count >= number_of_cards;
 }
 
 int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_out )
 {
     if ( option_verbose ) fprintf( stderr, "ゲームを初期化します...\n" );
     
+    // score of total games.
+    int32_t score_p1 = 0;
+    int32_t score_p2 = 0;
+    
     for ( int32_t index_of_game = 0; index_of_game < option_number_of_games; index_of_game++ ) {
         if ( option_verbose ) fprintf( stderr, "第 %000d ゲームを開始\n", index_of_game+1 );
+        
+        // this game points.
+        int32_t point_p1 = 0;
+        int32_t point_p2 = 0;
         
         // deck.
         int16_t deck_p1[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13};
         int16_t deck_p2[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13};
         const size_t number_of_deck = sizeof( deck_p1 ) / sizeof( deck_p1[0] );
-        shuffle( deck_p1, number_of_deck );
-        shuffle( deck_p2, number_of_deck );
+        deck_shuffle( deck_p1, number_of_deck );
+        deck_shuffle( deck_p2, number_of_deck );
         
         // hands.
         const size_t max_number_of_hands = 5;
-        int16_t hands_p1[max_number_of_hands] = {};
-        int16_t hands_p2[max_number_of_hands] = {};
+        int16_t hands_p1[max_number_of_hands+1] = {};   // hands must be 0 terminated array.
+        int16_t hands_p2[max_number_of_hands+1] = {};   // hands must be 0 terminated array.
         
-        // place.
+        // place. 0 terminated.
         int16_t place_left[number_of_deck*2] = {};
         int16_t place_right[number_of_deck*2] = {};
         
+        if ( ! write_reset( p1_in ) ) return EXIT_FAILURE;
+        if ( ! write_reset( p2_in ) ) return EXIT_FAILURE;
         
+        for ( int32_t index_of_turn = 0; game_is_end( place_left, place_right, number_of_deck * 2 ); index_of_turn++ ) {
+//            write_play(<#const int fd#>, <#const int32_t index_of_turn#>, <#const int16_t *hands_first#>, <#const int16_t *hands_second#>, <#const int16_t *place_left#>, <#const int16_t *place_right#>)
+        }
     }
     
     return EXIT_SUCCESS;
