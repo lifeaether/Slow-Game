@@ -1,10 +1,9 @@
-
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 
 #include <unistd.h>
@@ -138,6 +137,163 @@ bool write_play( const int fd, const int32_t index_of_turn, const int16_t *hands
     return true;
 }
 
+int32_t number_of_sequence( const int16_t *sequence )
+{
+  int32_t count = 0;
+  while ( *(sequence++) != 0 ) count++;
+  return count;
+}
+
+bool is_member_sequence( const int16_t *sequence, const int16_t member )
+{
+  while ( *sequence != 0 && *sequence != member ) sequence++;
+  return *sequence != 0;
+}
+
+typedef enum {
+  play_operation_null = 0,
+  play_operation_error,
+  play_operation_invalid,
+  play_operation_pass,
+  play_operation_draw,
+  play_operation_put_left,
+  play_operation_put_right
+} play_operation;
+
+typedef struct {
+  play_operation operation;
+  int16_t card;
+} play_action;
+
+play_action play_action_make( const play_operation operation, const int16_t card )
+{
+  play_action action = { operation, card };
+  return action;
+}
+
+bool is_equals_play_action( const play_action a1, const play_action a2 )
+{
+  return a1.operation == a2.operation && a1.card == a2.card;
+}
+
+play_action read_play( const int fd )
+{
+  play_action action = {};
+
+  char line[k_max_line];
+  if ( read_line( fd, line, sizeof( line ) ) ) {
+    if ( strcmp( line, "P" ) == 0 ) {
+      action.operation = play_operation_pass;
+    } else if ( strcmp( line, "D" ) == 0  ) {
+      action.operation = play_operation_draw;
+    } else if ( sscanf( line, "L%hi", &action.card ) == 1 ) {
+      action.operation = play_operation_put_left;
+    } else if ( sscanf( line, "R%hi", &action.card ) == 1 ) {
+      action.operation = play_operation_put_right;
+    } else {
+      action.operation = play_operation_invalid;
+    }
+  } else {
+    action.operation = play_operation_error;
+  }
+
+  return action;
+}
+
+static const size_t place_action_put_candidate_max = 10;
+int32_t play_action_put_candidate( play_action *candidates, int16_t *hands, int16_t *place, const play_operation operation )
+{
+  const int16_t * const candidate_begin  = candidates;
+  if ( *place == 0 ) {
+    for ( int16_t *it = hands; it != 0; it++ ) {
+      *(candidates++) = play_action_make( operation, *it );
+    }
+  } else {
+    int16_t upper = (*place + 1) % 13;
+    int16_t lower = (*place - 1) % 13;
+    if ( is_member_sequence( hands, upper ) ) {
+      *(candidates++) = play_action_make( operation, upper );
+    }
+    if ( upper != lower && is_member_sequence( hands, lower ) ) {
+      *(candidates++) = play_action_make( operation, lower );      
+    }
+  }
+
+  return candidates - candidate_begin;
+}
+
+static const size_t play_action_candidate_max = 12;
+void play_action_candidates( play_action *candidates, const play_action previous, const int16_t *deck, int16_t* hands, const ssize_t max_hands, int16_t *place_left, int16_t *place_right )
+{
+  const int16_t * const candidate_begin  = candidates;
+
+  if ( previous.operation == play_operation_pass ) {
+    for ( int16_t *it = hands; it != 0; it++ ) {
+      *(candidates++) = play_action_make( play_operation_put_left, *it );
+      *(candidates++) = play_action_make( play_operation_put_right, *it );
+    }    
+  } else {
+    candidates += play_action_put_candidate( candidates, hands, place_left, play_operation_put_left );
+    candidates += play_action_put_candidate( candidates, hands, place_right, play_operation_put_right );
+  }
+
+  if ( number_of_sequence( hands ) < max_hands ) {
+    *(candidates++) = play_action_make( play_operation_draw, 0 );
+  }
+
+  if ( previous.operation != play_operation_pass || (candidates - candidate_begin) == 0 ) {
+    *(candidates++) = play_action_make( play_operation_pass, 0 );
+  }
+
+  return candidates - candidate_begin;
+}
+
+bool is_member_play_actions( const play_action *actions, const play_action member, const size_t size )
+{
+  for ( ssize_t i = 0; i < size; i++ ) {
+    if ( is_equals_play_action( actions[i], member ) ) return true;
+  }
+  return false;
+}
+
+void play_draw( int16_t *deck, int16_t *hands )
+{
+  
+}
+
+void play_put( int16_t *hands, int16_t *place )
+{
+}
+
+play_action play( play_action action, const play_action previous, int16_t *deck, const size_t max_deck, int16_t *hands, const ssize_t max_hands, int16_t *place_left, int16_t *place_right, int32_t *point )
+{
+  play_action candidates[play_action_candidate_max] = {};
+  const int32_t number_of_candidates = play_action_candidates( candidates, previous, deck, max_deck, hands, max_hands, place_left, place_right );
+  assert( number_of_candidate > 0 );
+
+  if ( ! is_member_play_action( candidates, action, number_of_candidates ) ) {
+    // out of operation.
+    (*point)--;
+
+    // select an action in candidtes.
+    action = candidates[0];
+  }
+
+  if ( action.operation == play_operation_pass ) {
+    // no operation.
+  } else if ( action.operation == play_operation_draw ) {
+    play_draw( deck, hands );
+  } else if ( action.operation == play_operation_put_left ) {
+    play_put( hands, place_left );
+  } else if ( action.operation == play_operation_put_right ) {
+    play_put( hands, place_right );
+  } else {
+    assert( 0 );
+  }
+
+  return action;
+}
+
 bool game_is_end( const int16_t *place_left, const int16_t *place_right, const int32_t number_of_cards )
 {
     int32_t count = 0;
@@ -162,26 +318,36 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
         int32_t point_p2 = 0;
         
         // deck.
-        int16_t deck_p1[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13};
-        int16_t deck_p2[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13};
-        const size_t number_of_deck = sizeof( deck_p1 ) / sizeof( deck_p1[0] );
-        deck_shuffle( deck_p1, number_of_deck );
-        deck_shuffle( deck_p2, number_of_deck );
+        int16_t deck_p1[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13,0};
+        int16_t deck_p2[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,1,2,3,4,5,6,7,8,9,10,11,12,13,0};
+        deck_shuffle( deck_p1, number_of_sequence( deck_p1 ) );
+        deck_shuffle( deck_p2, number_of_sequence( deck_p2 ) );
         
         // hands.
         const size_t max_number_of_hands = 5;
-        int16_t hands_p1[max_number_of_hands+1] = {};   // hands must be 0 terminated array.
-        int16_t hands_p2[max_number_of_hands+1] = {};   // hands must be 0 terminated array.
+        int16_t hands_p1[max_number_of_hands+1] = {};
+        int16_t hands_p2[max_number_of_hands+1] = {};
         
         // place. 0 terminated.
-        int16_t place_left[number_of_deck*2] = {};
+        int16_t place_left[*2] = {};
         int16_t place_right[number_of_deck*2] = {};
+
+	// last turn action.
+	play_action last_p1 = {};
+	play_action last_p2 = {};
         
         if ( ! write_reset( p1_in ) ) return EXIT_FAILURE;
         if ( ! write_reset( p2_in ) ) return EXIT_FAILURE;
         
         for ( int32_t index_of_turn = 0; game_is_end( place_left, place_right, number_of_deck * 2 ); index_of_turn++ ) {
-//            write_play(<#const int fd#>, <#const int32_t index_of_turn#>, <#const int16_t *hands_first#>, <#const int16_t *hands_second#>, <#const int16_t *place_left#>, <#const int16_t *place_right#>)
+	  if ( ! write_play( p1_in, index_of_turn, hands_p1, hands_p2, place_left, place_right ) ) {
+	    return EXIT_FAILURE;
+	  }
+
+	  const play_action action = read_play( p1_out );
+	  if ( action.operation == play_operation_error ) {
+	    return EXIT_FAILURE;
+	  }
         }
     }
     
