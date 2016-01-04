@@ -97,6 +97,32 @@ bool read_to_lineend( const int fd )
     return true;
 }
 
+typedef enum {
+    play_operation_null = 0,
+    play_operation_error,
+    play_operation_invalid,
+    play_operation_pass,
+    play_operation_draw,
+    play_operation_put_left,
+    play_operation_put_right
+} play_operation;
+
+typedef struct {
+    play_operation operation;
+    int16_t card;
+} play_action;
+
+play_action play_action_make( const play_operation operation, const int16_t card )
+{
+    play_action action = { operation, card };
+    return action;
+}
+
+bool is_equals_play_action( const play_action a1, const play_action a2 )
+{
+    return a1.operation == a2.operation && a1.card == a2.card;
+}
+
 void deck_swap( int16_t *v1, int16_t *v2 )
 {
     int16_t t = *v1;
@@ -130,7 +156,31 @@ bool write_sequence( const int fd, const int16_t *sequence )
     return write_line( fd, line );
 }
 
-bool write_play( const int fd, const int32_t index_of_turn, const int16_t *hands_first, const int16_t *hands_second, const int16_t *place_left, const int16_t *place_right )
+bool write_play_action( const int fd, const play_action action )
+{
+    if ( action.operation == play_operation_pass ) {
+        if ( ! write_line( fd, "P" ) ) return false;
+    } else if ( action.operation == play_operation_draw ) {
+        if ( ! write_line( fd, "D" ) ) return false;
+    } else if ( action.operation == play_operation_put_left ) {
+        char line[k_max_line];
+        sprintf( line, "L%d", action.card );
+        if ( ! write_line( fd, line ) ) return false;
+    } else if ( action.operation == play_operation_put_right ) {
+        char line[k_max_line];
+        sprintf( line, "R%d", action.card );
+        if ( ! write_line( fd, line ) ) return false;
+    } else if ( action.operation == play_operation_null ) {
+        // no action previous.
+        if ( ! write_line( fd, "" ) ) return false;
+    } else {
+        // error action previous.
+        if ( ! write_line( fd, "" ) ) return false;
+    }
+    return true;
+}
+
+bool write_play( const int fd, const int32_t index_of_turn, const int16_t *hands_first, const int16_t *hands_second, const int16_t *place_left, const int16_t *place_right, const play_action action_first, const play_action action_second )
 {
     {
         // write turn.
@@ -143,6 +193,9 @@ bool write_play( const int fd, const int32_t index_of_turn, const int16_t *hands
     if ( ! write_sequence( fd, hands_second ) ) false;
     if ( ! write_sequence( fd, place_left ) ) false;
     if ( ! write_sequence( fd, place_right ) ) false;
+    if ( ! write_play_action( fd, action_first ) ) false;
+    if ( ! write_play_action( fd, action_second ) ) false;
+    
     return true;
 }
 
@@ -219,32 +272,6 @@ int16_t pop_sequence( int16_t *sequence )
     const int16_t value = *sequence;
     memmove( sequence, sequence+1, count-1 );
     return value;
-}
-
-typedef enum {
-    play_operation_null = 0,
-    play_operation_error,
-    play_operation_invalid,
-    play_operation_pass,
-    play_operation_draw,
-    play_operation_put_left,
-    play_operation_put_right
-} play_operation;
-
-typedef struct {
-    play_operation operation;
-    int16_t card;
-} play_action;
-
-play_action play_action_make( const play_operation operation, const int16_t card )
-{
-    play_action action = { operation, card };
-    return action;
-}
-
-bool is_equals_play_action( const play_action a1, const play_action a2 )
-{
-    return a1.operation == a2.operation && a1.card == a2.card;
 }
 
 play_action read_play( const int fd )
@@ -421,10 +448,10 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
         
         for ( int32_t index_of_turn = 0; game_is_end( place_left, place_right, max_number_of_cars_in_deck_p1 + max_number_of_cars_in_deck_p2 ); index_of_turn++ ) {
             if ( index_of_turn % 2 == 0 ) {
-                if ( ! write_play( STDIN_FILENO, index_of_turn, hands_p1, hands_p2, place_left, place_right ) ) {
+                if ( ! write_play( STDIN_FILENO, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
-                if ( ! write_play( p1_in, index_of_turn, hands_p1, hands_p2, place_left, place_right ) ) {
+                if ( ! write_play( p1_in, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
                 
@@ -435,10 +462,10 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 
                 last_p1 = play( action, last_p1, deck_p1, hands_p1, max_number_of_hands, place_left, place_right );
             } else {
-                if ( ! write_play( STDIN_FILENO, index_of_turn, hands_p2, hands_p1, place_left, place_right ) ) {
+                if ( ! write_play( STDIN_FILENO, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
-                if ( ! write_play( p2_in, index_of_turn, hands_p2, hands_p1, place_left, place_right ) ) {
+                if ( ! write_play( p2_in, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
                 
