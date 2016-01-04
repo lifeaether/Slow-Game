@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-
+#include <time.h>
 #include <unistd.h>
 
 // constants.
@@ -55,6 +55,8 @@ int run_player( const char *filename, const int pipe_in, const int pipe_out )
     if ( execl( filename, filename ) == -1 ) {
         fprintf( stderr, "error[%s]: execl に失敗しました(%d).\n", filename, __LINE__ );
         goto CLEAN;
+    } else {
+        // nerver execute following code.
     }
     
     exit_code = EXIT_SUCCESS;
@@ -75,14 +77,15 @@ CLEAN:
 bool write_line( const int fd, const char *line )
 {
     const size_t length = strlen( line );
-    return write( fd, line, length ) != length && write( fd, "\n", 1 ) != 1;
+    return write( fd, line, length ) == length && write( fd, "\n", 1 ) == 1;
 }
 
 bool read_line( const int fd, char *line, const size_t max_of_line )
 {
     size_t bytes = 0;
-    for ( *line = '\0'; bytes < max_of_line && *line != '\n'; ++line, ++bytes ) {
+    for ( ; bytes < max_of_line; ++line, ++bytes ) {
         if ( read( fd, line, 1 ) != 1 ) return false;
+        if ( *line == '\n' ) break;
     }
     *line = '\0';
     return true;
@@ -137,9 +140,15 @@ void deck_shuffle( int16_t *deck, const size_t size )
     }
 }
 
-bool write_reset( const int fd )
+bool write_reset( const int fd, const int32_t index_of_games )
 {
-    return write_line( fd, "RESET" );
+    if ( ! write_line( fd, "RESET" ) ) return false;
+    
+    char line[k_max_line];
+    sprintf( line, "%d", index_of_games );
+    if ( ! write_line( fd, line ) ) return false;
+    
+    return true;
 }
 
 bool write_sequence( const int fd, const int16_t *sequence )
@@ -151,6 +160,8 @@ bool write_sequence( const int fd, const int16_t *sequence )
     }
     if ( line_bytes > 0 ) {
         line[line_bytes-1] = '\0'; // delete tail space character.
+    } else {
+        *line = '\0';
     }
     
     return write_line( fd, line );
@@ -182,6 +193,7 @@ bool write_play_action( const int fd, const play_action action )
 
 bool write_play( const int fd, const int32_t index_of_turn, const int16_t *hands_first, const int16_t *hands_second, const int16_t *place_left, const int16_t *place_right, const play_action action_first, const play_action action_second )
 {
+    if ( ! write_line( fd, "PLAY" ) ) return false;
     {
         // write turn.
         char line[k_max_line];
@@ -248,7 +260,7 @@ bool is_member_sequence( const int16_t *sequence, const int16_t member )
 void push_sequence( int16_t *sequence, const int16_t value )
 {
     const int32_t count = number_of_sequence( sequence );
-    memmove( sequence+1, sequence, count );
+    memmove( sequence+1, sequence, count * sizeof(int16_t) );
     *sequence = value;
 }
 
@@ -257,7 +269,7 @@ bool pick_sequence( int16_t *sequence, const int16_t value )
     int16_t index;
     if ( index_of_sequence( sequence, value, &index ) ) {
         const int32_t count = number_of_sequence( sequence );
-        memmove( sequence+index, sequence+index+1, count - index - 1 );
+        memmove( sequence+index, sequence+index+1, (count - index) * sizeof(int16_t) );
         return true;
     } else {
         return false;
@@ -270,7 +282,7 @@ int16_t pop_sequence( int16_t *sequence )
     assert( count > 0 );
 
     const int16_t value = *sequence;
-    memmove( sequence, sequence+1, count-1 );
+    memmove( sequence, sequence+1, count * sizeof(int16_t) );
     return value;
 }
 
@@ -303,7 +315,7 @@ int32_t play_action_put_candidate( play_action *candidates, int16_t *hands, int1
 {
     const play_action * const candidate_begin  = candidates;
     if ( *place == 0 ) {
-        for ( int16_t *it = hands; it != 0; it++ ) {
+        for ( int16_t *it = hands; *it != 0; it++ ) {
             *(candidates++) = play_action_make( operation, *it );
         }
     } else {
@@ -326,7 +338,7 @@ int32_t play_action_candidates( play_action *candidates, const play_action previ
     const play_action * const candidate_begin  = candidates;
     
     if ( previous.operation == play_operation_pass ) {
-        for ( int16_t *it = hands; it != 0; it++ ) {
+        for ( int16_t *it = hands; *it != 0; it++ ) {
             *(candidates++) = play_action_make( play_operation_put_left, *it );
             *(candidates++) = play_action_make( play_operation_put_right, *it );
         }
@@ -395,12 +407,9 @@ play_action play( play_action action, const play_action previous, int16_t *deck,
     return action;
 }
 
-bool game_is_end( const int16_t *place_left, const int16_t *place_right, const int32_t number_of_cards )
+bool game_is_end( const int16_t *deck_p1, const int16_t *deck_p2, const int16_t *hands_p1, const int16_t *hands_p2 )
 {
-    int32_t count = 0;
-    while ( *(place_left++) != 0 ) count++;
-    while ( *(place_right++) != 0 ) count++;
-    return count >= number_of_cards;
+    return (*deck_p1 == 0 && *hands_p1 == 0) || (*deck_p2 == 0 && *hands_p2 == 0 );
 }
 
 int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_out )
@@ -438,17 +447,17 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
         play_action last_p1 = {};
         play_action last_p2 = {};
         
-        if ( ! write_reset( STDIN_FILENO ) ) return EXIT_FAILURE;
-        if ( ! write_reset( p1_in ) ) return EXIT_FAILURE;
+        if ( ! write_reset( STDOUT_FILENO, index_of_game ) ) return EXIT_FAILURE;
+        if ( ! write_reset( p1_in, index_of_game ) ) return EXIT_FAILURE;
         if ( ! read_to_lineend( p1_out ) ) return EXIT_FAILURE;
 
-        if ( ! write_reset( STDIN_FILENO ) ) return EXIT_FAILURE;
-        if ( ! write_reset( p2_in ) ) return EXIT_FAILURE;
+        if ( ! write_reset( STDOUT_FILENO, index_of_game ) ) return EXIT_FAILURE;
+        if ( ! write_reset( p2_in, index_of_game ) ) return EXIT_FAILURE;
         if ( ! read_to_lineend( p2_out ) ) return EXIT_FAILURE;
         
-        for ( int32_t index_of_turn = 0; game_is_end( place_left, place_right, max_number_of_cars_in_deck_p1 + max_number_of_cars_in_deck_p2 ); index_of_turn++ ) {
+        for ( int32_t index_of_turn = 0; ! game_is_end( deck_p1, deck_p2, hands_p1, hands_p2 ); index_of_turn++ ) {
             if ( index_of_turn % 2 == 0 ) {
-                if ( ! write_play( STDIN_FILENO, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
+                if ( ! write_play( STDOUT_FILENO, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
                 if ( ! write_play( p1_in, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
@@ -462,7 +471,7 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 
                 last_p1 = play( action, last_p1, deck_p1, hands_p1, max_number_of_hands, place_left, place_right );
             } else {
-                if ( ! write_play( STDIN_FILENO, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
+                if ( ! write_play( STDOUT_FILENO, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
                 if ( ! write_play( p2_in, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
@@ -480,7 +489,7 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
         
         {
             const int16_t points_p1 = sum_sequence( deck_p1 ) + sum_sequence( hands_p1 );
-            const int16_t points_p2 = sum_sequence( deck_p2 ) + sum_sequence( deck_p2 );
+            const int16_t points_p2 = sum_sequence( deck_p2 ) + sum_sequence( hands_p2 );
             if ( points_p1 == 0 ) {
                 score_p1 += points_p1 + points_p2;
             } else {
@@ -492,7 +501,7 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 score_p2 -= points_p1 + points_p2;
             }
             
-            if ( ! write_gameset( STDIN_FILENO, points_p1, points_p2, score_p1, score_p2 ) ) {
+            if ( ! write_gameset( STDOUT_FILENO, points_p1, points_p2, score_p1, score_p2 ) ) {
                 return EXIT_FAILURE;
             }
             if ( ! write_gameset( p1_in, points_p1, points_p2, score_p1, score_p2 ) ) {
@@ -502,7 +511,7 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 return EXIT_FAILURE;
             }
             
-            if ( ! write_gameset( STDIN_FILENO, points_p2, points_p1, score_p2, score_p1 ) ) {
+            if ( ! write_gameset( STDOUT_FILENO, points_p2, points_p1, score_p2, score_p1 ) ) {
                 return EXIT_FAILURE;
             }
             if ( ! write_gameset( p2_in, points_p2, points_p1, score_p2, score_p1 ) ) {
@@ -561,6 +570,8 @@ int main( const int argc, const char *argv[] )
         fprintf( stdout, " --verbose %s\n", option_verbose ? "true" : "false" );
     }
     
+    // srand
+    srand( time( NULL ) );
     
     // setup pipe.
     if ( option_verbose ) fprintf( stderr, "パイプを準備します...\n" );
