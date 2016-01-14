@@ -347,7 +347,7 @@ int32_t play_action_candidates( play_action *candidates, const play_action previ
         candidates += play_action_put_candidate( candidates, hands, place_right, play_operation_put_right );
     }
     
-    if ( number_of_sequence( hands ) < max_hands ) {
+    if ( number_of_sequence( hands ) < max_hands && number_of_sequence( deck ) > 0 ) {
         *(candidates++) = play_action_make( play_operation_draw, 0 );
     }
     
@@ -488,18 +488,21 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
         }
         
         {
-            const int16_t points_p1 = sum_sequence( deck_p1 ) + sum_sequence( hands_p1 );
-            const int16_t points_p2 = sum_sequence( deck_p2 ) + sum_sequence( hands_p2 );
-            if ( points_p1 == 0 ) {
-                score_p1 += points_p1 + points_p2;
-            } else {
-                score_p1 -= points_p1 + points_p2;
+            const int32_t sum_p1 = sum_sequence( deck_p1 ) + sum_sequence( hands_p1 );
+            const int32_t sum_p2 = sum_sequence( deck_p2 ) + sum_sequence( hands_p2 );
+            int32_t points_p1 = 0;
+            int32_t points_p2 = 0;
+            if ( sum_p1 == 0 ) {
+                points_p1 += sum_p2;
+                points_p2 -= sum_p2;
             }
-            if ( points_p2 == 0 ) {
-                score_p2 += points_p1 + points_p2;
-            } else {
-                score_p2 -= points_p1 + points_p2;
+            if ( sum_p2 == 0 ) {
+                points_p1 -= sum_p1;
+                points_p2 += sum_p1;
             }
+            
+            score_p1 += points_p1;
+            score_p2 += points_p2;
             
             if ( ! write_gameset( STDOUT_FILENO, points_p1, points_p2, score_p1, score_p2 ) ) {
                 return EXIT_FAILURE;
