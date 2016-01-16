@@ -119,10 +119,16 @@ action_t action_make( const action_operation operation, const card_t card )
 int32_t action_put_candidates( action_t *candidates, const action_operation operation, const card_array_t hands, const card_array_t place )
 {
     int32_t candidate_count = 0;
-    if ( ! card_array_is_empty( place ) ) {
+    if ( card_array_is_empty( place ) ) {
+        for ( int32_t index = 0; index < card_array_count( hands ); index++ ) {
+            const card_t card = card_array_at( hands, index );
+            candidates[candidate_count] = action_make( operation, card );
+            candidate_count++;
+        }
+    } else {
         const card_t card = card_array_top( place );
-        const card_t lower = ( card - 1 ) % 13;
-        const card_t upper = ( card + 1 ) % 13;
+        int16_t upper = card == 13 ? 1 : card + 1;
+        int16_t lower = card == 1 ? 13 : card - 1;
         if ( card_array_is_member( hands, lower ) ) {
             candidates[candidate_count] = action_make( operation, lower );
             candidate_count++;
@@ -176,6 +182,10 @@ int32_t action_candidates( action_t *candidates, const card_array_t hands, const
     return candidate_count;
 }
 
+// 1ゲーム中に引いた札の数を数える.
+static int32_t count_of_draw = 0;
+
+
 //!
 //! @brief  1ゲーム開始時に呼び出されます
 //!
@@ -184,6 +194,7 @@ int32_t action_candidates( action_t *candidates, const card_array_t hands, const
 void reset( const int32_t number_of_game )
 {
     // ここに 1 ゲームが開始される直前に行う処理を記述します.
+    count_of_draw = 0;
     
     // 乱数を初期化する.
     srand( (int)time( NULL ) );
@@ -212,12 +223,12 @@ void gameset( const int32_t you_point, const int32_t you_score, const int32_t op
 //! @param  you_previous [in]前回の自分の行動
 //! @param  op_previous  [in]前回の相手の行動
 //!
+static void action_write( const action_t action, char *line );
 action_t play( const int32_t turn, const card_array_t you_hands, const card_array_t op_hands, const card_array_t place_left, const card_array_t place_right, const action_t you_previous, const action_t op_previous )
 {
     // ここに自分のターンの処理を記述します.
-    
+   
     // 引いたカードの枚数を数える
-    static int32_t count_of_draw = 0;
     if ( you_previous.operation == action_operation_draw ) {
         count_of_draw++;
     }
@@ -226,8 +237,12 @@ action_t play( const int32_t turn, const card_array_t you_hands, const card_arra
     action_t candidates[k_action_candidate_max];
     const int32_t candidate_count = action_candidates( candidates, you_hands, place_left, place_right, you_previous, count_of_draw );
     
-    // 候補の中からランダムで実行.
-    return candidates[ rand() % candidate_count ];
+    // 候補の中からランダムで実行. 但し, パス以外の行動ができるときはパスを除く.
+    if ( candidate_count > 1 && candidates[candidate_count-1].operation == action_operation_pass ) {
+        return candidates[ rand() % (candidate_count-1) ];
+    } else {
+        return candidates[0];
+    }
 }
 
 
@@ -238,6 +253,7 @@ int32_t card_array_read( card_array_t cards, const int32_t max_cards, const char
         while ( *line != 0 && *line == ' ' ) line++;
         if ( *line == 0 ) break;
         if ( sscanf( line, "%hi", it ) != 1 ) break;
+        while ( *line != 0 && *line != ' ' ) line++;
         it++;
     }
     *it = 0;
