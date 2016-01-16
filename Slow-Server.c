@@ -19,7 +19,7 @@ static int32_t option_number_of_games = 1;
 
 void version()
 {
-    fprintf( stdout, "Slow-Server version 0.01\n" );
+    fprintf( stdout, "Slow-Server version 0.02\n" );
 }
 
 void usage()
@@ -319,8 +319,8 @@ int32_t play_action_put_candidate( play_action *candidates, int16_t *hands, int1
             *(candidates++) = play_action_make( operation, *it );
         }
     } else {
-        int16_t upper = (*place + 1) % 13;
-        int16_t lower = (*place - 1) % 13;
+        int16_t upper = *place == 13 ? 1 : *place + 1;
+        int16_t lower = *place == 1 ? 13 : *place - 1;
         if ( is_member_sequence( hands, upper ) ) {
             *(candidates++) = play_action_make( operation, upper );
         }
@@ -412,6 +412,28 @@ bool game_is_end( const int16_t *deck_p1, const int16_t *deck_p2, const int16_t 
     return (*deck_p1 == 0 && *hands_p1 == 0) || (*deck_p2 == 0 && *hands_p2 == 0 );
 }
 
+void print_hands( FILE *fp, const int16_t *hands )
+{
+    while ( *hands != 0 ) {
+        fprintf( fp, "%d ", *(hands++) );
+    }
+}
+
+void print_action( FILE *fp, const play_action action )
+{
+    if ( action.operation == play_operation_pass ) {
+        fprintf( fp, "パス" );
+    } else if ( action.operation == play_operation_draw ) {
+        fprintf( fp, "山札から１枚引く" );
+    } else if ( action.operation == play_operation_put_left ) {
+        fprintf( fp, "左に %d を置く", action.card );
+    } else if ( action.operation == play_operation_put_right ) {
+        fprintf( fp, "右に %d を置く", action.card );
+    } else {
+        fprintf( fp, "未定義の行動 %d", action.card );
+    }
+}
+
 int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_out )
 {
     if ( option_verbose ) fprintf( stderr, "ゲームを初期化します...\n" );
@@ -447,19 +469,27 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
         play_action last_p1 = {};
         play_action last_p2 = {};
         
-        if ( ! write_reset( STDOUT_FILENO, index_of_game ) ) return EXIT_FAILURE;
         if ( ! write_reset( p1_in, index_of_game ) ) return EXIT_FAILURE;
         if ( ! read_to_lineend( p1_out ) ) return EXIT_FAILURE;
 
-        if ( ! write_reset( STDOUT_FILENO, index_of_game ) ) return EXIT_FAILURE;
         if ( ! write_reset( p2_in, index_of_game ) ) return EXIT_FAILURE;
         if ( ! read_to_lineend( p2_out ) ) return EXIT_FAILURE;
         
         for ( int32_t index_of_turn = 0; ! game_is_end( deck_p1, deck_p2, hands_p1, hands_p2 ); index_of_turn++ ) {
-            if ( index_of_turn % 2 == 0 ) {
-                if ( ! write_play( STDOUT_FILENO, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
-                    return EXIT_FAILURE;
-                }
+
+            // print game.
+            {
+                fprintf( stdout, "ターン数: %d\n", index_of_turn+1 );
+                fprintf( stdout, "場: 左%d 右%d\n", *place_left, *place_right );
+                fprintf( stdout, "P1の手札: " );
+                print_hands( stdout, hands_p1 );
+                fprintf( stdout, "\n" );
+                fprintf( stdout, "P2の手札: " );
+                print_hands( stdout, hands_p2 );
+                fprintf( stdout, "\n" );
+            }
+            
+            if ( (index_of_turn + index_of_game) % 2 == 0 ) {
                 if ( ! write_play( p1_in, index_of_turn, hands_p1, hands_p2, place_left, place_right, last_p1, last_p2 ) ) {
                     return EXIT_FAILURE;
                 }
@@ -470,11 +500,15 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 }
                 
                 last_p1 = play( action, last_p1, deck_p1, hands_p1, max_number_of_hands, place_left, place_right );
-            } else {
-                if ( ! write_play( STDOUT_FILENO, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
-                    return EXIT_FAILURE;
+                
+                // print result.
+                {
+                    fprintf( stdout, "P1の行動: " );
+                    print_action( stdout, last_p1 );
+                    fprintf( stdout, "\n\n" );
                 }
-                if ( ! write_play( p2_in, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p1, last_p2 ) ) {
+            } else {
+                if ( ! write_play( p2_in, index_of_turn, hands_p2, hands_p1, place_left, place_right, last_p2, last_p1 ) ) {
                     return EXIT_FAILURE;
                 }
                 
@@ -484,6 +518,12 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 }
                 
                 last_p2 = play( action, last_p2, deck_p2, hands_p2, max_number_of_hands, place_left, place_right );
+                // print result.
+                {
+                    fprintf( stdout, "P2の行動: " );
+                    print_action( stdout, last_p2 );
+                    fprintf( stdout, "\n\n" );
+                }
             }
         }
         
@@ -504,9 +544,12 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
             score_p1 += points_p1;
             score_p2 += points_p2;
             
-            if ( ! write_gameset( STDOUT_FILENO, points_p1, points_p2, score_p1, score_p2 ) ) {
-                return EXIT_FAILURE;
+            // print score.
+            {
+                fprintf( stdout, "P1 POINTS: %d / %d\n", points_p1, score_p1 );
+                fprintf( stdout, "P2 POINTS: %d / %d\n", points_p2, score_p2 );
             }
+            
             if ( ! write_gameset( p1_in, points_p1, points_p2, score_p1, score_p2 ) ) {
                 return EXIT_FAILURE;
             }
@@ -514,9 +557,6 @@ int run_game( const int p1_in, const int p1_out, const int p2_in, const int p2_o
                 return EXIT_FAILURE;
             }
             
-            if ( ! write_gameset( STDOUT_FILENO, points_p2, points_p1, score_p2, score_p1 ) ) {
-                return EXIT_FAILURE;
-            }
             if ( ! write_gameset( p2_in, points_p2, points_p1, score_p2, score_p1 ) ) {
                 return EXIT_FAILURE;
             }
