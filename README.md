@@ -15,7 +15,8 @@ Slow-Server.c 及び Slow-Player.c は POSIX 環境でコンパイラ clang で�
 
 `clang Slow-Player.c -o Slow-Player`
 
-Windows 環境でのコンパイルは検討中です.
+Windows 環境では [Cygwin](http://cygwin.com/) 上のclang でのコンパイルを推奨します。
+Cygwinをインストールするときに clang のパッケージを選択します。
 
 ## ゲームサーバーの起動
 ゲームを行うには Slow-Server を起動します.
