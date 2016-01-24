@@ -46,5 +46,7 @@ Cygwinをインストールするときに clang のパッケージを選択し�
     * player2 にはもう一方のプレイヤーの実行ファイルを指定します.
 
 ## サンプルプレイヤー
-Slow-Player.c はプレイヤーのサンプルプログラムです.
+Slow-Player.c はプレイヤーのサンプルプログラムです. サンプルプレイヤー同士の対戦は以下のコマンドを実行します.
+
+`./Slow-Server --player1 Slow-Player --player2 Slow-Player --number 100`
 
