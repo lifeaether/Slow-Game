@@ -9,12 +9,17 @@
 #include <unistd.h>
 
 // constants.
-const int32_t k_max_line = 256;
+static const int32_t k_max_line = 256;
+static const int32_t k_max_arg = 9;
 
 // options
 static bool option_verbose = false;
 static const char *option_player1 = NULL;
 static const char *option_player2 = NULL;
+static const char *option_arguments1[k_max_arg+1] = {};
+static int32_t option_number_of_arguments1 = 0;
+static const char *option_arguments2[k_max_arg+1] = {};
+static int32_t option_number_of_arguments2 = 0;
 static int32_t option_number_of_games = 1;
 
 void version()
@@ -31,13 +36,15 @@ void usage()
     fprintf( stdout, "オプション\n" );
     fprintf( stdout, " --player1 プレイヤー1の実行ファイルを指定.\n" );
     fprintf( stdout, " --player2 プレイヤー2の実行ファイルを指定.\n" );
+    fprintf( stdout, " --arg1 プレイヤー1の実行ファイルに与える引数. 複数の引数を与える場合は繰り返し--arg1を与える.\n" );
+    fprintf( stdout, " --arg2 プレイヤー2の実行ファイルに与える第N引数. 複数の引数を与える場合は繰り返し--arg2を与える.\n" );
     fprintf( stdout, " --number 対戦数.\n" );
     fprintf( stdout, " --version バージョン情報表示.\n" );
     fprintf( stdout, " --verbose 動作を出力.\n" );
     fprintf( stdout, "\n" );
 }
 
-int run_player( const char *filename, const int pipe_in, const int pipe_out )
+int run_player( const char *filename, const char *args[], const int pipe_in, const int pipe_out )
 {
     int exit_code = EXIT_FAILURE;
     
@@ -52,7 +59,7 @@ int run_player( const char *filename, const int pipe_in, const int pipe_out )
     }
     
     // execute player
-    if ( execl( filename, filename ) == -1 ) {
+    if ( execl( filename, filename, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9] ) == -1 ) {
         fprintf( stderr, "error[%s]: execl に失敗しました(%d).\n", filename, __LINE__ );
         goto CLEAN;
     } else {
@@ -579,6 +586,22 @@ int main( const int argc, const char *argv[] )
             option_player2 = argv[++i];
         } else if ( i+1 < argc && strcmp( argv[i], "--number" ) == 0 ) {
             option_number_of_games = atoi( argv[++i] );
+        } else if ( i+1 < argc && strcmp( argv[i], "--arg1" ) == 0 ) {
+            if ( option_number_of_arguments1 < k_max_arg ) {
+                option_arguments1[option_number_of_arguments1++] = argv[++i];
+            } else {
+                fprintf( stdout, "error: 引数 %s をこれ以上指定できません.\n", argv[i] );
+                usage();
+                return EXIT_FAILURE;
+            }
+        } else if ( i+1 < argc && strcmp( argv[i], "--arg2" ) == 0 ) {
+            if ( option_number_of_arguments2 < k_max_arg ) {
+                option_arguments2[option_number_of_arguments2++] = argv[++i];
+            } else {
+                fprintf( stdout, "error: 引数 %s をこれ以上指定できません.\n", argv[i] );
+                usage();
+                return EXIT_FAILURE;
+            }
         } else if ( strcmp( argv[i], "--version" ) == 0 ) {
             version();
             return EXIT_SUCCESS;
@@ -674,7 +697,7 @@ int main( const int argc, const char *argv[] )
             fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
         
-        return run_player( option_player1, fd_p1_in[0], fd_p1_out[1] );
+        return run_player( option_player1, option_arguments1, fd_p1_in[0], fd_p1_out[1] );
     }
     
     pid_p2 = fork();
@@ -701,7 +724,7 @@ int main( const int argc, const char *argv[] )
             fprintf( stderr, "warn: close に失敗しました(%d).\n", __LINE__ );
         }
         
-        return run_player( option_player1, fd_p2_in[0], fd_p2_out[1] );
+        return run_player( option_player1, option_arguments2, fd_p2_in[0], fd_p2_out[1] );
     }
     
     // start game.
